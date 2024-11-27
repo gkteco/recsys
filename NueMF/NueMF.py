@@ -190,7 +190,7 @@ class GMF(pl.LightningModule):
         gmf = torch.mul(user_embedding, item_embedding)
         gmf = self.output_layer(gmf)
         o = torch.sigmoid(gmf)
-        return o
+        return o # (batch_size, 1)
     
     def training_step(self, batch, batch_idx):
         user_ids, item_ids, labels = batch["user_id"], batch["item_id"], batch["rating"]
@@ -242,7 +242,7 @@ class MLP(pl.LightningModule):
             x = layer(x)
         x = self.output_layer(x)
         o = torch.sigmoid(x)
-        return o
+        return o # (batch_size, 1)
     
     def training_step(self, batch, batch_idx):
         user_ids, item_ids, labels = batch["user_id"], batch["item_id"], batch["rating"]
@@ -330,10 +330,26 @@ class NeuMF(pl.LightningModule):
         return mlp_checkpoint_callback.best_model_path
 
     def forward(self, user_ids, item_ids):
-        gmf_output = self.gmf(user_ids, item_ids)
-        mlp_output = self.mlp(user_ids, item_ids)
-        concat = torch.cat([gmf_output, mlp_output], dim=0).view(1, -1) # (batch_size*2, 1) -> (1, batch_size*2)
-        output = self.output_layer(concat).view(-1, 1)
+        #gmf_output = self.gmf(user_ids, item_ids) # (batch_size, 1)
+        #mlp_output = self.mlp(user_ids, item_ids) # (batch_size, 1)
+        gmf_user_embs = self.gmf.user_embeddings(user_ids) # (batch_size, embedding_dim)
+        gmf_item_embs = self.gmf.item_embeddings(item_ids)
+        gmf_vector = torch.mul(gmf_user_embs, gmf_item_embs) # (batch_size, embedding_dim)
+        
+        mlp_user_embs = self.mlp.user_embeddings(user_ids) # (batch_size, embedding_dim)
+        mlp_item_embs = self.mlp.item_embeddings(item_ids)
+        # torch.cat([mlp_user_embs, mlp_item_embs], dim=1) # (batch_size, embedding_dim * 2)
+        # mlp_layers: List[int] = [1024, 512, 256, 128]
+        mlp_vector = self.mlp.mlp_layers(torch.cat[mlp_user_embs, mlp_item_embs], dim=1)) # (batch_size, mlp_layers[-1])
+
+        concat = torch.cat([gmf_vector, mlp_vector], dim=1) # (batch_size, mlp_vector + gmf_vector)
+        
+        # torch.cat([gmf_output, mlp_output], dim=1) # (batch_size, 2)
+        # torch.cat([gmf_output, mlp_output], dim=0) # (batch_size*2, 1)
+        # concat = torch.cat([gmf_output, mlp_output], dim=0).view(1, -1) # (batch_size*2, 1) -> (1, batch_size*2)
+        # output = self.output_layer(concat).view(-1, 1)
+        output = self.output_layer(concat) # (batch_size, mlp_vector + gmf_vector) -> (batch_size, 1)
+        output = torch.sigmoid(output) # (batch_size, 1)
         return output
     
     def training_step(self, batch, batch_idx):
