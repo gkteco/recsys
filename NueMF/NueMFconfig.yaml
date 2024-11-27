@@ -1,0 +1,10 @@
+model_type: "neumf"
+num_users: 6040
+num_items: 3706
+gmf_embedding_dim: 1024
+mlp_embedding_dim: 1024
+mlp_layers: "1024,512,256,128"
+batch_size: 1024
+is_dev: true
+pretrain_gmf: true
+pretrain_mlp: true
