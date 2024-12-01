@@ -5,6 +5,9 @@ gmf_embedding_dim: 1024
 mlp_embedding_dim: 1024
 mlp_layers: "1024,512,256,128"
 batch_size: 1024
-is_dev: true
-pretrain_gmf: true
-pretrain_mlp: true
+is_dev: false
+gmf_checkpoint: "/teamspace/studios/this_studio/RecSys/NueMF/checkpoints/gmf-epoch=09.ckpt.ckpt"
+mlp_checkpoint: "/teamspace/studios/this_studio/RecSys/NueMF/checkpoints/mlp-epoch=02.ckpt.ckpt"
+nuemf_checkpoint: "/teamspace/studios/this_studio/RecSys/NueMF/checkpoints/neumf-epoch=02-NeuMF_val_loss=0.00.ckpt"
+#pretrain_gmf: true
+#pretrain_mlp: true
