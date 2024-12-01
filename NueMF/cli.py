@@ -103,7 +103,8 @@ Examples:
     compile_group.add_argument('--nuemf_checkpoint', type=str,
                       default=None,
                       help='Path to pretrained NeuMF checkpoint')
-
+    compile_group.add_argument('--profile', action='store_true',
+                      help='Profile the model using torch.profiler')
     args = parser.parse_args()
     
     # Load config file if specified
@@ -138,7 +139,8 @@ def main():
     # Create checkpoint directory if it doesn't exist
     Path(args.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
-    # Pretrain models if specified
+
+
     if args.pretrain_gmf:
         args.gmf_checkpoint = _pretrain_gmf(args, pylogger)
     if args.pretrain_mlp:

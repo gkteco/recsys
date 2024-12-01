@@ -19,7 +19,9 @@ def compile_model(model: torch.nn.Module,
 def benchmark_inference(model: torch.nn.Module,
                        dataloader: DataLoader,
                        device: str,
-                       num_runs: int = 100) -> float:
+                       num_runs: int = 100,
+                       profile: bool = False
+                       ) -> float:
     """Run inference benchmark and return average time per batch."""
     model.eval()
     total_time = 0.0
@@ -62,6 +64,15 @@ def benchmark_inference(model: torch.nn.Module,
     avg_time = total_time / (num_runs * num_batches)
     print(f"Final average time per batch: {avg_time*1000:.2f}ms")
     print(f"Total batches per run: {num_batches}")
+    if profile:
+        from torch.profiler import profile, record_function, ProfilerActivity
+        batch = next(iter(dataloader))
+        user_ids = batch["user_id"].to(device)
+        item_ids = batch["item_id"].to(device)
+        with profile(activities=[ProfilerActivity.CUDA], record_shapes=True) as prof:
+            with record_function("profiler"):
+                _ = model(user_ids, item_ids)
+        print(prof.key_averages().table(sort_by="cuda_time_total"))
     
     return total_time / num_runs  # Return average time per epoch
 
@@ -74,16 +85,7 @@ def run_benchmarks(args, data_module: MovieLensDataModule):
     
     # Initialize models
     if args.nuemf_checkpoint is None:
-        base_model = NeuMF(
-            num_users=args.num_users,
-            num_items=args.num_items,
-            gmf_checkpoint=args.gmf_checkpoint,
-            mlp_checkpoint=args.mlp_checkpoint,
-            gmf_embedding_dim=args.gmf_embedding_dim,
-            mlp_embedding_dim=args.mlp_embedding_dim,
-            mlp_layers=[int(x) for x in args.mlp_layers.split(',')],
-            batch_size=args.batch_size,
-        ).to(device)
+        return
     else:
         base_model = NeuMF.load_from_checkpoint(
                 args.nuemf_checkpoint,
@@ -91,24 +93,24 @@ def run_benchmarks(args, data_module: MovieLensDataModule):
                 num_items=args.num_items,
                 gmf_checkpoint=args.gmf_checkpoint,
                 mlp_checkpoint=args.mlp_checkpoint,
-        ).to(device)
+        ).requires_grad_(False).eval().to(device)
         # Get validation dataloader for benchmarking
         val_loader = data_module.val_dataloader()
         results = {}
         
         # Benchmark uncompiled
         pylogger.info(f"Benchmarking uncompiled model...")
-        results['uncompiled'] = benchmark_inference(base_model, val_loader, device)
+        results['uncompiled'] = benchmark_inference(base_model, val_loader, device, profile=args.profile)
             
         # Benchmark torch.compile
         pylogger.info(f"Benchmarking torch.compile model...")
         torch_model = compile_model(base_model, 'torch')
-        results['torch'] = benchmark_inference(torch_model, val_loader, device)
+        results['torch'] = benchmark_inference(torch_model, val_loader, device, profile=args.profile)
             
         # Benchmark thunder
         pylogger.info(f"Benchmarking thunder model...")
         thunder_model = compile_model(base_model, 'thunder')
-        results['thunder'] = benchmark_inference(thunder_model, val_loader, device)
+        results['thunder'] = benchmark_inference(thunder_model, val_loader, device, profile=args.profile)
     
     # Print results
     pylogger.info("\nBenchmark Results (seconds per epoch):")
